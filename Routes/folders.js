@@ -1,33 +1,62 @@
-// routes/folders.js
-const express = require('express');
-const router = express.Router();
-const Folder = require('../Models/Folder');
+const express = require('express')
+const Book = require('../Models/Folder')
+const {requireAuth}=require('../Middleware/AuthMiddleware')
+const router = express.Router()
 
 
 
-// Create a new folder
-router.post('/folders', async (req, res) => {
-  const { name, parentId } = req.body;
-
-  try {
-    const newFolder = new Folder({ name, parentId });
-    await newFolder.save();
-    res.status(201).send(newFolder);
-  } catch (error) {
-    res.status(400).send(error);
-  }
-});
-
-// Get all folders for a user
 router.get('/folders', async (req, res) => {
-  const userId = req.user._id;
-
-  try {
-    const folders = await Folder.find({ userId });
-    res.send(folders);
-  } catch (error) {
-    res.status(500).send(error);
-  }
+    const folders = await Folder.find().populate({
+        path: 'subfolders',
+        populate: {
+            path: 'subfolders',
+            populate: {
+                path: 'subfolders'
+            }
+        }
+    }).exec();
+    res.json(folders);
 });
 
-module.exports = router;
+router.post('/folders', async (req, res) => {
+    const newFolder = new Folder({
+        name: req.body.name,
+        path: req.body.path || '/', // Root by default or provided path
+    });
+    await newFolder.save();
+    res.json(newFolder);
+});
+
+router.post('/folders/:id/subfolders', async (req, res) => {
+    const parentFolder = await Folder.findById(req.params.id);
+    const newSubfolder = new Folder({
+        name: req.body.name,
+        path: `${parentFolder.path}${parentFolder.name}/`,
+    });
+    parentFolder.subfolders.push(newSubfolder);
+    await newSubfolder.save();
+    await parentFolder.save();
+    res.json(newSubfolder);
+});
+
+router.delete('/folders/:id', async (req, res) => {
+    const folder = await Folder.findById(req.params.id);
+    await Folder.deleteMany({ _id: { $in: folder.subfolders } });
+    await File.deleteMany({ _id: { $in: folder.files } });
+    await Folder.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Folder and its contents deleted' });
+});
+
+router.post('/folders/:id/files', async (req, res) => {
+    const folder = await Folder.findById(req.params.id);
+    const newFile = new File({
+        name: req.file.filename,
+        path: `uploads/${req.file.filename}`,
+        size: req.file.size,
+        type: req.file.mimetype
+    });
+    folder.files.push(newFile);
+    await newFile.save();
+    await folder.save();
+    res.json(folder);
+});
