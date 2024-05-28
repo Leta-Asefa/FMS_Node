@@ -25,4 +25,8 @@ const authRouter = require('./Routes/auth.js')
 app.use('/auth', authRouter)
 
 
+const foldersRouter = require('./Routes/folders.js')
+app.use('/folders', foldersRouter)
+
+
 

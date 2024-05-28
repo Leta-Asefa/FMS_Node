@@ -1,62 +1,194 @@
 const express = require('express')
-const Book = require('../Models/Folder')
-const {requireAuth}=require('../Middleware/AuthMiddleware')
+const multer = require('multer')
+const path=require('path')
+const Folder = require('../Models/Folder')
+const File = require('../Models/File')
+const { requireAuth } = require('../Middleware/AuthMiddleware')
 const router = express.Router()
 
 
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null,'UploadedFiles')
+    },
+    filename: (req, file, cb) => {
+        cb(null,Date.now()+path.extname(file.originalname))
+    }
+})
+const upload=multer({storage:storage})
 
-router.get('/folders', async (req, res) => {
-    const folders = await Folder.find().populate({
-        path: 'subfolders',
-        populate: {
-            path: 'subfolders',
-            populate: {
-                path: 'subfolders'
-            }
+
+
+router.get('/all', async (req, res) => {
+    try {
+        const folders = await Folder.find();
+        res.status(200).json(folders);
+    } catch (error) {
+        console.error('Error fetching all folders:', error);
+        res.status(500).send('Internal Server Error');
+    }
+});
+
+router.get('/root', async (req, res) => {
+    try {
+      const rootFolder = await Folder.findOne({ path: '/Root/' }).populate('subfolders');
+      if (!rootFolder) {
+        return res.status(404).send('Root folder not found');
+      }
+      res.status(200).json(rootFolder);
+    } catch (error) {
+      console.error('Error fetching root folder:', error);
+      res.status(500).send('Internal Server Error');
+    }
+});
+  
+router.get('/all_populated', async (req, res) => {
+    try {
+        const rootFolder = await Folder.findOne({ path: '/Root/' });
+        const halfPopulated = await populateFolders(rootFolder);
+        const populatedFolder=await populateFiles(halfPopulated)
+        
+        res.status(200).json(populatedFolder);
+    } catch (error) {
+        console.error('Error fetching all folders:', error);
+        res.status(500).send('Internal Server Error');
+    }
+});
+
+
+router.post('/add_root', async (req, res) => {
+    try {
+        const { name, path, files, subfolders } = req.body;
+
+        const newFolder = new Folder({
+            name,
+            path: path || `/Root/`,
+            files: files || [],
+            subfolders: subfolders || []
+        });
+
+        const savedFolder = await newFolder.save();
+
+        res.status(201).json(savedFolder);
+    } catch (error) {
+        console.error('Error adding folder:', error);
+        res.status(500).send('Internal Server Error');
+    }
+});
+
+router.post('/add_subfolder', async (req, res) => {
+    try {
+        const { parentId, name, files, subfolders,owner } = req.body;
+        const parentFolder = await Folder.findById(parentId);
+        if (!parentFolder) {
+            return res.status(404).send('Parent folder not found');
         }
-    }).exec();
-    res.json(folders);
+        const path=parentFolder.path+name+'/'
+        console.log("Owner=",owner,"Path=",path)
+        const data={
+            name,
+            owner,
+            path: path || '/', 
+            files: files || [],
+            subfolders: subfolders || []
+        }
+        const newSubfolder = new Folder(data);
+
+        const savedSubfolder = await newSubfolder.save();
+
+      
+        parentFolder.subfolders.push(savedSubfolder._id);
+        await parentFolder.save();
+
+        res.status(201).json({ savedSubfolder, parentFolder });
+    } catch (error) {
+        console.error('Error adding subfolder:', error);
+        res.status(500).send('Internal Server Error');
+    }
 });
 
-router.post('/folders', async (req, res) => {
-    const newFolder = new Folder({
-        name: req.body.name,
-        path: req.body.path || '/', // Root by default or provided path
-    });
-    await newFolder.save();
-    res.json(newFolder);
+
+router.get('/delete_all', async (req, res) => {
+    try {
+        await Folder.deleteMany({});
+        res.send("Deleted !")
+    } catch (error) {
+        console.error('Error fetching all folders:', error);
+        res.status(500).send('Internal Server Error');
+    }
 });
 
-router.post('/folders/:id/subfolders', async (req, res) => {
-    const parentFolder = await Folder.findById(req.params.id);
-    const newSubfolder = new Folder({
-        name: req.body.name,
-        path: `${parentFolder.path}${parentFolder.name}/`,
-    });
-    parentFolder.subfolders.push(newSubfolder);
-    await newSubfolder.save();
-    await parentFolder.save();
-    res.json(newSubfolder);
-});
 
-router.delete('/folders/:id', async (req, res) => {
-    const folder = await Folder.findById(req.params.id);
-    await Folder.deleteMany({ _id: { $in: folder.subfolders } });
-    await File.deleteMany({ _id: { $in: folder.files } });
-    await Folder.findByIdAndDelete(req.params.id);
-    res.json({ message: 'Folder and its contents deleted' });
-});
+router.post('/upload/:folderId', upload.array('files', 50), async (req, res) => {
+    const { folderId } = req.params;
+  
+    try {
+      const folder = await Folder.findById(folderId);
+  
+      if (!folder) {
+        return res.status(404).send('Folder not found');
+      }
+  
+      const files = req.files.map(file => ({
+        name: file.originalname,
+        path: file.path,
+        size: file.size,
+        type: file.mimetype, 
+        folder: folderId
+      }));
+  
+      const savedFiles = await File.insertMany(files);
+  
+      folder.files.push(...savedFiles.map(file => file._id));
+      await folder.save();
+  
+      res.status(201).json(savedFiles);
+    } catch (error) {
+      console.error('Error uploading files:', error);
+      res.status(500).send('Internal Server Error');
+    }
+  });
+  
 
-router.post('/folders/:id/files', async (req, res) => {
-    const folder = await Folder.findById(req.params.id);
-    const newFile = new File({
-        name: req.file.filename,
-        path: `uploads/${req.file.filename}`,
-        size: req.file.size,
-        type: req.file.mimetype
-    });
-    folder.files.push(newFile);
-    await newFile.save();
-    await folder.save();
-    res.json(folder);
-});
+  router.post('/permission/:folderId', async (req, res) => {
+    const { folderId } = req.params;
+    const {username,action}=req.body
+    try {
+      const folder = await Folder.findById(folderId);
+  
+      if (!folder) {
+        return res.status(404).send('Folder not found');
+        }
+        
+        if (action === 'read')
+            folder.read.push(username)
+        if (action === 'write')
+            folder.write.push(username)
+        if (action === 'readWrite')
+            folder.readWrite.push(username)
+        
+      await folder.save();
+  
+      res.status(201).json(folder);
+    } catch (error) {
+      console.error('Error uploading files:', error);
+      res.status(500).send('Internal Server Error');
+    }
+  });
+  
+
+const populateFolders = async (folder) => {
+    const populatedFolder = await Folder.populate(folder, { path: 'subfolders' });
+    for (let subfolder of populatedFolder.subfolders) {
+      await populateFolders(subfolder);
+    }
+    return populatedFolder;
+};
+  
+const populateFiles = async (folder) => {
+    const populatedFile = await Folder.populate(folder, { path: 'files' });
+    return populatedFile;
+};
+
+
+module.exports = router
