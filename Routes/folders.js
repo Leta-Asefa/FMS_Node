@@ -55,6 +55,19 @@ router.get('/all_populated', async (req, res) => {
     }
 });
 
+router.get('/all_populated/:id', async (req, res) => {
+    try {
+        const rootFolder = await Folder.findById(req.params.id);
+        const halfPopulated = await populateFolders(rootFolder);
+        const populatedFolder=await populateFiles(halfPopulated)
+        
+        res.status(200).json(populatedFolder);
+    } catch (error) {
+        console.error('Error fetching all folders:', error);
+        res.json({error});
+    }
+});
+
 
 router.post('/add_root', async (req, res) => {
     try {
@@ -87,7 +100,7 @@ router.post('/add_subfolder', async (req, res) => {
         console.log("Owner=",owner,"Path=",path)
         const data={
             name,
-            owner,
+            owner:owner||'',
             path: path || '/', 
             files: files || [],
             subfolders: subfolders || []
@@ -108,15 +121,37 @@ router.post('/add_subfolder', async (req, res) => {
 });
 
 
-router.get('/delete_all', async (req, res) => {
+router.delete('/delete_all', async (req, res) => {
     try {
         await Folder.deleteMany({});
+        await File.deleteMany({});
         res.send("Deleted !")
     } catch (error) {
         console.error('Error fetching all folders:', error);
         res.status(500).send('Internal Server Error');
     }
 });
+
+router.delete('/delete', async (req, res) => {
+    const {data}=req.body
+    try {
+
+        for (const element of data) {
+            if (element.isFile) {
+                await File.findByIdAndDelete(element.id);
+                console.log("After deleting",data)
+            } else {
+                await Folder.findByIdAndDelete(element.id);
+            }
+        }
+        
+        res.json({"response":"Deleted Successfully !"})
+    } catch (error) {
+        console.error('Error fetching all folders:', error);
+        res.json({'error':"No Folder To Be Deleted (folderId not found)"});
+    }
+});
+
 
 
 router.post('/upload/:folderId', upload.array('files', 50), async (req, res) => {
@@ -176,6 +211,25 @@ router.post('/upload/:folderId', upload.array('files', 50), async (req, res) => 
     }
   });
   
+  router.post('/rename/:folderId', async (req, res) => {
+    const { folderId } = req.params;
+    const {newName}=req.body
+    try {
+      const folder = await Folder.findById(folderId);
+  
+      if (!folder) {
+        return res.status(404).send('Folder not found');
+        }
+        folder.name = newName
+        
+      await folder.save();
+  
+      res.status(201).json(folder);
+    } catch (error) {
+      console.error('Error uploading files:', error);
+      res.status(500).send('Internal Server Error');
+    }
+  });
 
 const populateFolders = async (folder) => {
     const populatedFolder = await Folder.populate(folder, { path: 'subfolders' });

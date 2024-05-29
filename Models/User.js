@@ -53,3 +53,5 @@ UserSchema.statics.login = async function(username, password) {
 
 
 module.exports=mongoose.model('User',UserSchema)
+
+
