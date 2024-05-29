@@ -226,7 +226,29 @@ router.post('/upload/:folderId', upload.array('files', 50), async (req, res) => 
   
       res.status(201).json(folder);
     } catch (error) {
-      console.error('Error uploading files:', error);
+      console.error('Error renaming folders:', error);
+      res.status(500).send('Internal Server Error');
+    }
+  });
+
+
+  router.post('/rename/file/:fileId', async (req, res) => {
+    const {fileId} = req.params;
+    const {newName}=req.body
+    try {
+      const file = await File.findById(fileId);
+  
+      if (!file) {
+        return res.status(404).send('File not found');
+        }
+        const fileExtension = file.name.split('.').pop();
+        file.name = newName+'.'+fileExtension
+        
+      await file.save();
+  
+      res.status(201).json(file);
+    } catch (error) {
+      console.error('Error renaming file:', error);
       res.status(500).send('Internal Server Error');
     }
   });
