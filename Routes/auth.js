@@ -31,6 +31,10 @@ router.get('/all', async (req, res) => {
     const users = await User.find()
     res.json(users)
 })
+router.get('/all/users', async (req, res) => {
+    const users = await User.find({organizationName:''})
+    res.json(users)
+})
 
 router.post('/signup', async(req, res) => {
     const { username, firstName, lastName, organizationName, password, role } = req.body

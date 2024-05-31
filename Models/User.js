@@ -1,7 +1,6 @@
 const mongoose = require('mongoose')
 const { isEmail, isIn } = require('validator')
 const bcrypt=require('bcrypt')
-const roles=["admin", "user"]
 
 const UserSchema = mongoose.Schema({
     username: {
@@ -24,9 +23,7 @@ const UserSchema = mongoose.Schema({
         type: String
     },
     role: {
-        type: String,
-        enum: roles,
-        required: [true, "Please enter the role"]
+        type: String
    
     }
 })
