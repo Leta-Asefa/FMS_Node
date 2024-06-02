@@ -69,7 +69,7 @@ router.get('/all_populated/:id', async (req, res) => {
 });
 
 
-router.post('/add_root', async (req, res) => {
+router.post('/add_root',requireAuth, async (req, res) => {
     try {
         const { name, path, files, subfolders } = req.body;
 
@@ -81,7 +81,8 @@ router.post('/add_root', async (req, res) => {
         });
 
         const savedFolder = await newFolder.save();
-
+        console.log('Created Root Folder ', savedFolder)
+        console.log("Username " ,req.username)
         res.status(201).json(savedFolder);
     } catch (error) {
         console.error('Error adding folder:', error);
@@ -142,7 +143,7 @@ router.delete('/delete', async (req, res) => {
                 }
             } else {
                 const folder = await Folder.findByIdAndDelete(element.id);
-               
+
             }
         }
 
@@ -221,9 +222,12 @@ router.post('/rename/:folderId', async (req, res) => {
         if (!folder) {
             return res.status(404).send('Folder not found');
         }
-        
-        let newPath = folder.path.replace(`/${folder.name}/`, `/${newName}/`);
-        folder.path=newPath
+
+        const newPath = replaceLastOccurrence(folder.path, folder.name, newName);
+
+
+        //  let newPath = folder.path.replace(`/${folder.name}/`, `/${newName}/`);
+        folder.path = newPath
         folder.name = newName
 
 
@@ -261,7 +265,7 @@ router.post('/rename/file/:fileId', async (req, res) => {
 async function copySubfoldersAndFiles(folder, newFolder) {
     for (const subfolderId of folder.subfolders) {
         const subfolder = await Folder.findById(subfolderId).populate('subfolders files');
-        
+
         const newSubfolder = new Folder({
             name: subfolder.name,
             path: `${newFolder.path}${subfolder.name}/`,
@@ -277,7 +281,7 @@ async function copySubfoldersAndFiles(folder, newFolder) {
 
     for (const fileId of folder.files) {
         const file = await File.findById(fileId);
-        
+
         const newFile = new File({
             path: `${newFolder.path}${file.name}`,
             name: file.name,
@@ -294,58 +298,172 @@ async function copySubfoldersAndFiles(folder, newFolder) {
 }
 
 // Main route to handle copying
-router.post('/copy/:id', async (req, res) => {
-    const { id } = req.params;
-    const { parentId, newParentId, type } = req.body;
+router.post('/copy', async (req, res) => {
 
-    try {
-        if (type === 'file') {
-            const file = await File.findById(id);
-            if (!file) return res.status(404).send('File not found');
+    const { files, parentId, newParentId } = req.body;
 
-            const newParentFolder = await Folder.findById(newParentId);
+    for (const [key, value] of Object.entries(files)) {
+        const id = key
+        const type = value.isFile ? 'file' : 'folder'
+        if (files[key] === parentId)
+            continue
 
-            const newFile = new File({
-                path: `${newParentFolder.path}${file.name}`,
-                name: file.name,
-                size: file.size,
-                type: file.type,
-                folder: newParentId
-            });
+        try {
+            if (type === 'file') {
+                const file = await File.findById(id);
+                if (!file) return res.status(404).send('File not found');
 
-            const savedFile = await newFile.save();
-            newParentFolder.files.push(savedFile._id);
-            await newParentFolder.save();
+                const newParentFolder = await Folder.findById(newParentId);
 
-        } else if (type === 'folder') {
-            const folder = await Folder.findById(id).populate('subfolders files');
-            if (!folder) return res.status(404).send('Folder not found');
+                const newFile = new File({
+                    path: `${newParentFolder.path}${file.name}`,
+                    name: file.name,
+                    size: file.size,
+                    type: file.type,
+                    folder: newParentId
+                });
 
-            const newParentFolder = await Folder.findById(newParentId);
-            const newFolderPath = `${newParentFolder.path}${folder.name}/`;
+                const savedFile = await newFile.save();
+                newParentFolder.files.push(savedFile._id);
+                await newParentFolder.save();
 
-            const newFolder = new Folder({
-                name: folder.name,
-                path: newFolderPath,
-                parent: newParentId
-            });
+            } else if (type === 'folder') {
+                const folder = await Folder.findById(id).populate('subfolders files');
+                if (!folder) return res.status(404).send('Folder not found');
 
-            const savedFolder = await newFolder.save();
-            newParentFolder.subfolders.push(savedFolder._id);
-            await newParentFolder.save();
+                const newParentFolder = await Folder.findById(newParentId);
+                const newFolderPath = `${newParentFolder.path}${folder.name}/`;
 
-            await copySubfoldersAndFiles(folder, savedFolder);
+                const newFolder = new Folder({
+                    name: folder.name,
+                    path: newFolderPath,
+                    parent: newParentId
+                });
+
+                const savedFolder = await newFolder.save();
+                newParentFolder.subfolders.push(savedFolder._id);
+                await newParentFolder.save();
+
+                await copySubfoldersAndFiles(folder, savedFolder);
+            }
+
+        } catch (error) {
+            console.error('Error copying item:', error);
+            res.status(500).send('Internal Server Error');
         }
 
-        res.status(201).send('Copied successfully');
-    } catch (error) {
-        console.error('Error copying item:', error);
-        res.status(500).send('Internal Server Error');
+
+
     }
+
+    res.status(201).send('Copied successfully');
+
+
+});
+
+
+router.post('/move', async (req, res) => {
+    const { files, parentId, newParentId } = req.body;
+
+
+    for (const [key, value] of Object.entries(files)) {
+        const id = key
+        const type = value.isFile ? 'file' : 'folder'
+        if (files[key] === parentId)
+            continue
+
+        try {
+            if (type === 'file') {
+                const file = await File.findById(id);
+                if (!file) return res.status(404).send('File not found');
+
+                const newParentFolder = await Folder.findById(newParentId);
+                if (!newParentFolder) return res.status(404).send('New parent folder not found');
+
+                file.folder = newParentId;
+                await file.save();
+
+                newParentFolder.files.push(file._id);
+                await newParentFolder.save();
+
+                await Folder.findByIdAndUpdate(parentId, { $pull: { files: file._id } });
+
+            } else if (type === 'folder') {
+                const folder = await Folder.findById(id).populate('subfolders files');
+                if (!folder) return res.status(404).send('Folder not found');
+
+                const newParentFolder = await Folder.findById(newParentId);
+                if (!newParentFolder) return res.status(404).send('New parent folder not found');
+
+                const oldPath = folder.path;
+                const newPath = `${newParentFolder.path}${folder.name}/`;
+
+                const updatePaths = async (folder, oldPath, newPath) => {
+                    if (!folder) return; // Ensure the folder is not null
+                    folder.path = folder.path.replace(oldPath, newPath);
+                    await folder.save();
+
+                    for (const subfolder of folder.subfolders) {
+                        const subfolderData = await Folder.findById(subfolder);
+                        await updatePaths(subfolderData, oldPath, newPath);
+                    }
+
+                    for (const file of folder.files) {
+                        const fileData = await File.findById(file);
+                        if (fileData) { // Ensure the fileData is not null
+                            fileData.path = fileData.path.replace(oldPath, newPath);
+                            await fileData.save();
+                        }
+                    }
+                };
+
+                await updatePaths(folder, oldPath, newPath);
+
+
+
+                newParentFolder.subfolders.push(folder._id);
+                await newParentFolder.save();
+
+                // Remove the folder from the old parent's subfolders array
+                await Folder.findByIdAndUpdate(parentId, { $pull: { subfolders: folder._id } });
+            }
+        } catch (error) {
+            console.error('Error moving item:', error);
+            res.status(500).send('Internal Server Error');
+        }
+
+
+
+    }
+
+    res.status(201).send('Copied successfully');
+
 });
 
 
 
+
+function replaceLastOccurrence(path, folderName, newName) {
+    const target = `/${folderName}/`;
+    const replacement = `/${newName}/`;
+
+    // Find the index of the last occurrence of the target string
+    const lastIndex = path.lastIndexOf(target);
+
+    // If the target string is not found, return the original path
+    if (lastIndex === -1) {
+        return path;
+    }
+
+    // Split the path into two parts: before the target and after the target
+    const beforeTarget = path.slice(0, lastIndex);
+    const afterTarget = path.slice(lastIndex + target.length);
+
+    // Reconstruct the path with the replacement
+    const newPath = beforeTarget + replacement + afterTarget;
+
+    return newPath;
+}
 
 
 

@@ -1,6 +1,7 @@
 const express = require('express')
 const User = require('../Models/User')
 const jwt = require('jsonwebtoken')
+const Folder=require('../Models/Folder')
 const router = express.Router()
 
 
@@ -40,13 +41,22 @@ router.post('/signup', async(req, res) => {
     const { username, firstName, lastName, organizationName, password, role } = req.body
     const data = { username, firstName, lastName, organizationName, password, role }
     
-    console.log(username,firstName,password)
     try {
         const user = new User(data)
        const createdUser= await user.save()
         const token = createToken(createdUser._id)
+
+        const newFolder = new Folder({
+            name: username,
+            path: `/${username}/`,
+            files: [],
+            subfolders: []
+        });
+
+        const savedFolder = await newFolder.save();
+      
         res.cookie('jwt',token,{httpOnly:true,maxAge:3*24*60*60,secure:true})
-        res.json({username:createdUser.username,role:createdUser.role,password:createdUser._id})
+        res.json({username:createdUser.username,role:createdUser.role,password:createdUser._id,root:savedFolder})
 
     } catch (err) {
         console.log(err)
@@ -62,12 +72,16 @@ router.post('/login', async (req, res) => {
         
         const user = await User.login(username, password)
         const token = createToken(user._id)
-        res.cookie('jwt',token,{maxAge:3*24*60*60*1000,secure:true})
-        res.json({ 'role': user.role, "username":user.username,"firstName":user.firstName})
+        const rootFolder = await Folder.findOne({ path: `/${username}/` });
+       
+        res.cookie('jwt', token, { maxAge: 3 * 24 * 60 * 60 * 1000*1000, secure: false
+            
+         })
+        res.json({ 'role': user.role, "username":user.username,"firstName":user.firstName,'rootId':rootFolder._id})
 
     } catch (err) {
         console.log("error "+err)
-        res.status(400).json({err:err.message})
+        res.json({'error':err.message})
     }
 
 })
