@@ -2,6 +2,7 @@ const express = require('express')
 const multer = require('multer')
 const path = require('path')
 const Folder = require('../Models/Folder')
+const User = require('../Models/User')
 const File = require('../Models/File')
 const { requireAuth } = require('../Middleware/AuthMiddleware')
 const router = express.Router()
@@ -44,11 +45,11 @@ router.get('/root', async (req, res) => {
 
 router.get('/all_populated', async (req, res) => {
     try {
-        const rootFolder = await Folder.findOne({ path: '/Root/' });
-        const halfPopulated = await populateFolders(rootFolder);
-        const populatedFolder = await populateFiles(halfPopulated)
+        const rootFolders = await Folder.find();
+        // const halfPopulated = await populateFolders(rootFolder);
+        // const populatedFolder = await populateFiles(halfPopulated)
 
-        res.status(200).json(populatedFolder);
+        res.status(200).json(rootFolders);
     } catch (error) {
         console.error('Error fetching all folders:', error);
         res.status(500).send('Internal Server Error');
@@ -69,7 +70,7 @@ router.get('/all_populated/:id', async (req, res) => {
 });
 
 
-router.post('/add_root',requireAuth, async (req, res) => {
+router.post('/add_root', requireAuth, async (req, res) => {
     try {
         const { name, path, files, subfolders } = req.body;
 
@@ -82,7 +83,7 @@ router.post('/add_root',requireAuth, async (req, res) => {
 
         const savedFolder = await newFolder.save();
         console.log('Created Root Folder ', savedFolder)
-        console.log("Username " ,req.username)
+        console.log("Username ", req.username)
         res.status(201).json(savedFolder);
     } catch (error) {
         console.error('Error adding folder:', error);
@@ -186,23 +187,117 @@ router.post('/upload/:folderId', upload.array('files', 50), async (req, res) => 
     }
 });
 
+router.get('/users/:folderId', async (req, res) => {
+    try {
+        const folder = await Folder.findById(req.params.folderId);
+        if (!folder) {
+            return res.status(404).json({ error: 'Folder not found' });
+        }
+
+        const userSet = new Set([...folder.read, ...folder.write, ...folder.readWrite]);
+        console.log(userSet)
+        const users = [];
+
+        for (const username of userSet) {
+            const user = await User.findOne({ username }); // Assuming you have a User model
+            if (user) {
+                let accessControl ;
+                if (folder.read.includes(username)) accessControl='read';
+                if (folder.write.includes(username)) accessControl='write';
+                if (folder.readWrite.includes(username)) accessControl='readWrite';
+                users.push({
+                    _id:user._id,
+                    username: user.username,
+                    firstName: user.firstName,
+                    lastName: user.lastName,
+                    accessControl: accessControl
+                });
+            }
+        }
+
+        res.json(users);
+    } catch (error) {
+        console.error('Error fetching users:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+
+
+router.post('/updatePermission/:folderId', async (req, res) => {
+    const { username, action } = req.body;
+    try {
+        const folder = await Folder.findById(req.params.folderId);
+
+        if (!folder) {
+            return res.status(404).send('Folder not found');
+        }
+
+        if (action === 'read') {
+            // Remove from other permissions
+            folder.write = folder.write.filter(user => user !== username);
+            folder.readWrite = folder.readWrite.filter(user => user !== username);
+
+            if (!folder.read.includes(username)) {
+                folder.read.push(username);
+            }
+        } else if (action === 'write') {
+            // Remove from other permissions
+            folder.read = folder.read.filter(user => user !== username);
+            folder.readWrite = folder.readWrite.filter(user => user !== username);
+
+            if (!folder.write.includes(username)) {
+                folder.write.push(username);
+            }
+        } else if (action === 'readWrite') {
+            // Remove from other permissions
+            folder.read = folder.read.filter(user => user !== username);
+            folder.write = folder.write.filter(user => user !== username);
+
+            if (!folder.readWrite.includes(username)) {
+                folder.readWrite.push(username);
+            }
+        } else {
+            return res.status(400).send('Invalid action');
+        }
+
+        await folder.save();
+
+        res.status(200).json('User permission updated');
+    } catch (error) {
+        console.error('Error updating permissions:', error);
+        res.status(500).send('Internal Server Error');
+    }
+});
+
+
 
 router.post('/permission/:folderId', async (req, res) => {
     const { folderId } = req.params;
-    const { username, action } = req.body
+    const { selectedUsers, action } = req.body
     try {
         const folder = await Folder.findById(folderId);
 
         if (!folder) {
             return res.status(404).send('Folder not found');
         }
-
-        if (action === 'read')
-            folder.read.push(username)
-        if (action === 'write')
-            folder.write.push(username)
-        if (action === 'readWrite')
-            folder.readWrite.push(username)
+        for (const user of selectedUsers) {
+            if (action === 'read' || typeof action === 'undefined') {
+                if (!folder.read.includes(user.username)) {
+                    folder.read.push(user.username);
+                }
+            }
+            if (action === 'write') {
+                if (!folder.write.includes(user.username)) {
+                    folder.write.push(user.username);
+                }
+            }
+            if (action === 'readWrite') {
+                if (!folder.readWrite.includes(user.username)) {
+                    folder.readWrite.push(user.username);
+                }
+            }
+        }
 
         await folder.save();
 
