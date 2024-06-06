@@ -83,7 +83,7 @@ router.post('/login', async (req, res) => {
 
             const rootFolder = await Folder.findOne({ path: `/${username}/` });
             res.cookie('jwt', token, { maxAge: 3 * 24 * 60 * 60 * 1000*1000, secure: false })
-            res.json({ 'role': user.role, "username": user.username, "firstName": user.firstName, 'rootId': rootFolder._id })
+            res.json({ 'role': user.role, "username": user.username, "firstName": user.firstName,"organizationName":user.organizationName, 'rootId': rootFolder._id })
 
         } else {
             const folders = await Folder.find({ $or: [{ read: username }, { write: username }, { readWrite: username }] })
@@ -94,12 +94,22 @@ router.post('/login', async (req, res) => {
                 const name = folder.name
                 const user = await User.findOne({ username: name })
                 const organizationName = user.organizationName
-                usersFolder.push({username:name,organizationName,rootId:folder._id})
+                let role
+                if (folder.read.includes(username))
+                    role = "read"
+                else if (folder.write.includes(username))
+                    role = "write"
+                else if (folder.readWrite.includes(username))
+                    role = "readWrite"
+                else 
+                    role = 'unknown'
+                
+                usersFolder.push({username:name,organizationName,role,rootId:folder._id})
                 
             }
                
             res.cookie('jwt', token, { maxAge: 3 * 24 * 60 * 60 * 1000, secure: false })
-            res.json({ "username": user.username, "firstName": user.firstName, "lastName":user.lastName,usersFolder })
+            res.json({ "username": user.username, "firstName": user.firstName, "lastName":user.lastName,"organizationName":user.organizationName, usersFolder })
 
         }
 

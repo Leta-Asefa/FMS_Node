@@ -12,7 +12,7 @@ connection.on('open', () => console.log('Database Connection Established...'))
 
 app.listen(PORT, () => console.log('Server started on port ' + PORT))
 
-app.use(express.json())
+app.use(express.json({ limit: '500mb' }));
 app.use(cookieParser())
 const frontendOrigin = 'http://localhost:3000';
 

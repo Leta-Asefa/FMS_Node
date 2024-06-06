@@ -1,5 +1,6 @@
 const express = require('express')
 const multer = require('multer')
+const fs = require('fs')
 const path = require('path')
 const Folder = require('../Models/Folder')
 const User = require('../Models/User')
@@ -133,7 +134,7 @@ router.delete('/delete_all', async (req, res) => {
     }
 });
 
-router.delete('/delete', async (req, res) => {
+router.delete('/delete', requireAuth, async (req, res) => {
     const { data } = req.body;
     try {
         for (const element of data) {
@@ -201,12 +202,12 @@ router.get('/users/:folderId', async (req, res) => {
         for (const username of userSet) {
             const user = await User.findOne({ username }); // Assuming you have a User model
             if (user) {
-                let accessControl ;
-                if (folder.read.includes(username)) accessControl='read';
-                if (folder.write.includes(username)) accessControl='write';
-                if (folder.readWrite.includes(username)) accessControl='readWrite';
+                let accessControl;
+                if (folder.read.includes(username)) accessControl = 'read';
+                if (folder.write.includes(username)) accessControl = 'write';
+                if (folder.readWrite.includes(username)) accessControl = 'readWrite';
                 users.push({
-                    _id:user._id,
+                    _id: user._id,
                     username: user.username,
                     firstName: user.firstName,
                     lastName: user.lastName,
@@ -470,10 +471,16 @@ router.post('/move', async (req, res) => {
         try {
             if (type === 'file') {
                 const file = await File.findById(id);
-                if (!file) return res.status(404).send('File not found');
+                if (!file) {
+                    res.status(404).send('File not found');
+                    return;
+                }
 
                 const newParentFolder = await Folder.findById(newParentId);
-                if (!newParentFolder) return res.status(404).send('New parent folder not found');
+                if (!newParentFolder) {
+                    res.status(404).send('New parent folder not found');
+                    return;
+                }
 
                 file.folder = newParentId;
                 await file.save();
@@ -481,8 +488,14 @@ router.post('/move', async (req, res) => {
                 newParentFolder.files.push(file._id);
                 await newParentFolder.save();
 
-                await Folder.findByIdAndUpdate(parentId, { $pull: { files: file._id } });
-
+                const oldParentFolder = await Folder.findById(parentId);
+                if (oldParentFolder) {
+                    oldParentFolder.files.pull(file._id);
+                    await oldParentFolder.save();
+                } else {
+                    res.status(404).send('Old parent folder not found');
+                    return;
+                }
             } else if (type === 'folder') {
                 const folder = await Folder.findById(id).populate('subfolders files');
                 if (!folder) return res.status(404).send('Folder not found');
@@ -535,7 +548,51 @@ router.post('/move', async (req, res) => {
 
 });
 
+router.get('/search/:searchString', async (req, res) => {
+    try {
+        const searchString = req.params.searchString;
 
+        // Use a regular expression to match files whose names start with the searchString
+        const regex = new RegExp('^' + searchString);
+
+        // Query for files matching the regular expression and sort them ascendingly by name
+        const files = await File.find({ name: { $regex: regex } }).sort({ name: 1 });
+
+        // Send the response with the found files
+        res.json(files);
+    } catch (error) {
+        // Handle any errors that occur during the query or response sending
+        console.error('Error searching files:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+
+router.get('/openfile/:fileId', async (req, res) => {
+
+    console.log(req.params.fileId)
+    try {
+        const fileId = req.params.fileId;
+        const file = await File.findById(fileId);
+
+        if (!file) {
+            return res.status(404).send('File not found');
+        }
+
+        const filePath = path.resolve(file.path);
+        fs.readFile(filePath, (err, data) => {
+            if (err) {
+                return res.status(500).send('Error reading file');
+            }
+
+            const base64Data = data.toString('base64');
+            res.send(base64Data);
+        });
+    } catch (error) {
+        console.log(error)
+        res.status(500).send('Server error');
+    }
+});
 
 
 function replaceLastOccurrence(path, folderName, newName) {
