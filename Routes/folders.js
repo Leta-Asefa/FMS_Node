@@ -160,7 +160,8 @@ router.delete('/delete', requireAuth, async (req, res) => {
 
 router.post('/upload/:folderId', upload.array('files', 50), async (req, res) => {
     const { folderId } = req.params;
-
+    const owner = req.body.owner
+    console.log("owner ",owner)
     try {
         const folder = await Folder.findById(folderId);
 
@@ -168,13 +169,19 @@ router.post('/upload/:folderId', upload.array('files', 50), async (req, res) => 
             return res.status(404).send('Folder not found');
         }
 
+        console.log(req.files)
+
         const files = req.files.map(file => ({
             name: file.originalname,
+            hashedName:file.filename,
             path: file.path,
             size: file.size,
             type: file.mimetype,
-            folder: folderId
+            folder: folderId,
+            owner:owner
         }));
+
+        console.log(files)
 
         const savedFiles = await File.insertMany(files);
 
@@ -196,7 +203,6 @@ router.get('/users/:folderId', async (req, res) => {
         }
 
         const userSet = new Set([...folder.read, ...folder.write, ...folder.readWrite]);
-        console.log(userSet)
         const users = [];
 
         for (const username of userSet) {
@@ -306,6 +312,32 @@ router.post('/permission/:folderId', async (req, res) => {
     } catch (error) {
         console.error('Error uploading files:', error);
         res.status(500).send('Internal Server Error');
+    }
+});
+
+router.post('/removeUserAccess', async (req, res) => {
+    const { folderId, username } = req.body;
+
+    
+   
+    try {
+        const folder = await Folder.findById(folderId);
+        
+        if (!folder) {
+            return res.status(404).send('Folder not found');
+        }
+
+        // Remove user from read, write, and readWrite arrays
+        folder.read = folder.read.filter(user => user !== username);
+        folder.write = folder.write.filter(user => user !== username);
+        folder.readWrite = folder.readWrite.filter(user => user !== username);
+
+        await folder.save();
+
+
+        res.status(200).send('User access removed successfully');
+    } catch (error) {
+        res.status(500).send('Internal server error');
     }
 });
 
@@ -548,16 +580,20 @@ router.post('/move', async (req, res) => {
 
 });
 
-router.get('/search/:searchString', async (req, res) => {
+
+
+router.post('/search/:searchString', async (req, res) => {
     try {
         const searchString = req.params.searchString;
-
-        // Use a regular expression to match files whose names start with the searchString
-        const regex = new RegExp('^' + searchString);
-
+        const {username}=req.body
+        
+        // Escape special characters in the searchString
+        const escapedSearchString = escapeRegex(searchString);
         // Query for files matching the regular expression and sort them ascendingly by name
-        const files = await File.find({ name: { $regex: regex } }).sort({ name: 1 });
-
+        const regex = new RegExp(escapedSearchString, 'i');
+        
+        console.log(username)
+        const files = await File.find({ name: { $regex: regex },owner:username }).sort({ name: 1 });
         // Send the response with the found files
         res.json(files);
     } catch (error) {
@@ -569,30 +605,32 @@ router.get('/search/:searchString', async (req, res) => {
 
 
 router.get('/openfile/:fileId', async (req, res) => {
-
-    console.log(req.params.fileId)
     try {
-        const fileId = req.params.fileId;
-        const file = await File.findById(fileId);
-
-        if (!file) {
-            return res.status(404).send('File not found');
-        }
-
-        const filePath = path.resolve(file.path);
-        fs.readFile(filePath, (err, data) => {
-            if (err) {
-                return res.status(500).send('Error reading file');
-            }
-
-            const base64Data = data.toString('base64');
-            res.send(base64Data);
-        });
+      const fileId = req.params.fileId;
+      const file = await File.findById(fileId);
+    
+      if (!file) {
+        return res.status(404).send('File not found');
+      }
+    
+      // Construct direct URL to the file
+      const fileUrl = `http://localhost:4000/uploads/${file.hashedName}`; // Adjust port number as needed
+    
+      res.json({
+        url: fileUrl,
+        type: file.type,
+        name: file.name
+      });
     } catch (error) {
-        console.log(error)
-        res.status(500).send('Server error');
+      res.status(500).send('Server error');
     }
-});
+  });
+ 
+  
+  
+  
+  
+  
 
 
 function replaceLastOccurrence(path, folderName, newName) {
@@ -617,7 +655,9 @@ function replaceLastOccurrence(path, folderName, newName) {
     return newPath;
 }
 
-
+function escapeRegex(string) {
+    return string.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+}
 
 const populateFolders = async (folder) => {
     const populatedFolder = await Folder.populate(folder, { path: 'subfolders' });

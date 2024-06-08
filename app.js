@@ -1,6 +1,8 @@
 const express = require('express')
 const mongoose = require('mongoose')
 const cors=require('cors')
+const path=require('path')
+
 const cookieParser=require('cookie-parser')
 const app = express()
 const DBURL = 'mongodb://localhost:27017/DMS'
@@ -11,6 +13,8 @@ const connection = mongoose.connection
 connection.on('open', () => console.log('Database Connection Established...'))
 
 app.listen(PORT, () => console.log('Server started on port ' + PORT))
+app.use('/uploads', express.static(path.join(__dirname, 'UploadedFiles')));
+// app.use(express.static('UploadedFiles'))
 
 app.use(express.json({ limit: '500mb' }));
 app.use(cookieParser())
