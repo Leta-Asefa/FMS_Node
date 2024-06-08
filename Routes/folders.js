@@ -21,7 +21,7 @@ const upload = multer({ storage: storage })
 
 
 
-router.get('/all', async (req, res) => {
+router.get('/all',requireAuth, async (req, res) => {
     try {
         const folders = await Folder.find();
         res.status(200).json(folders);
@@ -31,7 +31,7 @@ router.get('/all', async (req, res) => {
     }
 });
 
-router.get('/root', async (req, res) => {
+router.get('/root',requireAuth, async (req, res) => {
     try {
         const rootFolder = await Folder.findOne({ path: '/Root/' }).populate('subfolders');
         if (!rootFolder) {
@@ -44,7 +44,7 @@ router.get('/root', async (req, res) => {
     }
 });
 
-router.get('/all_populated', async (req, res) => {
+router.get('/all_populated',requireAuth, async (req, res) => {
     try {
         const rootFolders = await Folder.find();
         // const halfPopulated = await populateFolders(rootFolder);
@@ -57,7 +57,7 @@ router.get('/all_populated', async (req, res) => {
     }
 });
 
-router.get('/all_populated/:id', async (req, res) => {
+router.get('/all_populated/:id',requireAuth, async (req, res) => {
     try {
         const rootFolder = await Folder.findById(req.params.id);
         const halfPopulated = await populateFolders(rootFolder);
@@ -92,7 +92,7 @@ router.post('/add_root', requireAuth, async (req, res) => {
     }
 });
 
-router.post('/add_subfolder', async (req, res) => {
+router.post('/add_subfolder',requireAuth, async (req, res) => {
     try {
         const { parentId, name, files, subfolders, owner } = req.body;
         const parentFolder = await Folder.findById(parentId);
@@ -123,7 +123,7 @@ router.post('/add_subfolder', async (req, res) => {
 });
 
 
-router.delete('/delete_all', async (req, res) => {
+router.delete('/delete_all',requireAuth, async (req, res) => {
     try {
         await Folder.deleteMany({});
         await File.deleteMany({});
@@ -158,7 +158,7 @@ router.delete('/delete', requireAuth, async (req, res) => {
 
 
 
-router.post('/upload/:folderId', upload.array('files', 50), async (req, res) => {
+router.post('/upload/:folderId',requireAuth, upload.array('files', 50), async (req, res) => {
     const { folderId } = req.params;
     const owner = req.body.owner
     console.log("owner ",owner)
@@ -195,7 +195,7 @@ router.post('/upload/:folderId', upload.array('files', 50), async (req, res) => 
     }
 });
 
-router.get('/users/:folderId', async (req, res) => {
+router.get('/users/:folderId',requireAuth, async (req, res) => {
     try {
         const folder = await Folder.findById(req.params.folderId);
         if (!folder) {
@@ -231,7 +231,7 @@ router.get('/users/:folderId', async (req, res) => {
 
 
 
-router.post('/updatePermission/:folderId', async (req, res) => {
+router.post('/updatePermission/:folderId',requireAuth, async (req, res) => {
     const { username, action } = req.body;
     try {
         const folder = await Folder.findById(req.params.folderId);
@@ -279,7 +279,7 @@ router.post('/updatePermission/:folderId', async (req, res) => {
 
 
 
-router.post('/permission/:folderId', async (req, res) => {
+router.post('/permission/:folderId',requireAuth, async (req, res) => {
     const { folderId } = req.params;
     const { selectedUsers, action } = req.body
     try {
@@ -315,7 +315,7 @@ router.post('/permission/:folderId', async (req, res) => {
     }
 });
 
-router.post('/removeUserAccess', async (req, res) => {
+router.post('/removeUserAccess',requireAuth, async (req, res) => {
     const { folderId, username } = req.body;
 
     
@@ -341,7 +341,7 @@ router.post('/removeUserAccess', async (req, res) => {
     }
 });
 
-router.post('/rename/:folderId', async (req, res) => {
+router.post('/rename/:folderId',requireAuth, async (req, res) => {
     const { folderId } = req.params;
     const { newName } = req.body
     try {
@@ -369,7 +369,7 @@ router.post('/rename/:folderId', async (req, res) => {
 });
 
 
-router.post('/rename/file/:fileId', async (req, res) => {
+router.post('/rename/file/:fileId',requireAuth, async (req, res) => {
     const { fileId } = req.params;
     const { newName } = req.body
     try {
@@ -426,7 +426,7 @@ async function copySubfoldersAndFiles(folder, newFolder) {
 }
 
 // Main route to handle copying
-router.post('/copy', async (req, res) => {
+router.post('/copy',requireAuth, async (req, res) => {
 
     const { files, parentId, newParentId } = req.body;
 
@@ -448,7 +448,9 @@ router.post('/copy', async (req, res) => {
                     name: file.name,
                     size: file.size,
                     type: file.type,
-                    folder: newParentId
+                    folder: newParentId,
+                    hashedName: file.hashedName,
+                    owner:file.owner
                 });
 
                 const savedFile = await newFile.save();
@@ -490,7 +492,7 @@ router.post('/copy', async (req, res) => {
 });
 
 
-router.post('/move', async (req, res) => {
+router.post('/move',requireAuth, async (req, res) => {
     const { files, parentId, newParentId } = req.body;
 
 
@@ -582,7 +584,7 @@ router.post('/move', async (req, res) => {
 
 
 
-router.post('/search/:searchString', async (req, res) => {
+router.post('/search/:searchString',requireAuth, async (req, res) => {
     try {
         const searchString = req.params.searchString;
         const {username}=req.body
@@ -604,7 +606,7 @@ router.post('/search/:searchString', async (req, res) => {
 });
 
 
-router.get('/openfile/:fileId', async (req, res) => {
+router.get('/openfile/:fileId',requireAuth, async (req, res) => {
     try {
       const fileId = req.params.fileId;
       const file = await File.findById(fileId);

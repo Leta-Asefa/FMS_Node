@@ -4,12 +4,12 @@ const requireAuth = (req, res,next) => {
     
     const token=req.cookies.jwt
 
+   
     if (token) {
-        jwt.verify(token, "your secret key here , it should be long , not share to anyone", (err,decodedText) => {
+        jwt.verify(token, "your secret key here , it should be long , not share to anyone", (err) => {
             if (err) {
                 res.json({"error":err})
             } else {
-               
                 next()
             }
         }

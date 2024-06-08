@@ -24,7 +24,7 @@ function handleErrors(err) {
 }
 
 function createToken(id) {
-    return jwt.sign({ id }, 'your secret key here , it should be long , not share to anyone', { expiresIn: 3 * 24 * 60 * 60 * 1000 })
+    return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRATION })
 }
 
 //------/all route is for testing purpose------
@@ -57,7 +57,7 @@ router.post('/signup', async (req, res) => {
             });
 
             const savedFolder = await newFolder.save();
-            res.cookie('jwt', token, { httpOnly: true, maxAge: 3 * 24 * 60 * 60, secure: true })
+            res.cookie('jwt', token, { httpOnly: true, maxAge: 3 * 24 * 60 * 60, secure: true,sameSite:"None" })
             res.json({ username: createdUser.username, role: createdUser.role, password: createdUser._id, root: savedFolder })
         } else {
 
@@ -74,7 +74,6 @@ router.post('/signup', async (req, res) => {
 
 router.post('/login', async (req, res) => {
     const { username, password } = req.body
-
     try {
 
         const user = await User.login(username, password)
