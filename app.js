@@ -18,7 +18,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'UploadedFiles')));
 app.use(express.json({ limit: '500mb' }));
 app.use(cookieParser())
 const frontendOrigin = process.env.FRONTEND_ORIGIN;
-
+console.log(frontendOrigin)
 app.use(cors({
   origin: frontendOrigin,
   credentials: true // Allow credentials (cookies) to be sent

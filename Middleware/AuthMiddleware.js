@@ -1,14 +1,15 @@
-const jwt=require('jsonwebtoken')
+const jwt = require('jsonwebtoken')
 
-const requireAuth = (req, res,next) => {
-    
-    const token=req.cookies.jwt
+const requireAuth = (req, res, next) => {
 
-   
+    const token = req.cookies.jwt
+
+
     if (token) {
-        jwt.verify(token, "your secret key here , it should be long , not share to anyone", (err) => {
+
+        jwt.verify(token, process.env.JWT_SECRET, (err) => {
             if (err) {
-                res.json({"error":err})
+                res.json({ "error": err })
             } else {
                 next()
             }
@@ -17,8 +18,10 @@ const requireAuth = (req, res,next) => {
 
 
 
-    } else {
-        res.json({"error":"You have no jwt"})
+    }
+    else {
+        console.log("User has no jwt")
+        res.json({ "error": "You have no jwt" })
     }
 }
 
@@ -27,5 +30,5 @@ const requireAuth = (req, res,next) => {
 
 
 
-module.exports={requireAuth}
+module.exports = { requireAuth }
 

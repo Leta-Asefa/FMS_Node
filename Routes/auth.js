@@ -57,11 +57,11 @@ router.post('/signup', async (req, res) => {
             });
 
             const savedFolder = await newFolder.save();
-            res.cookie('jwt', token, { httpOnly: true, maxAge: 3 * 24 * 60 * 60, secure: true,sameSite:"None" })
+            res.cookie('jwt', token, { httpOnly: true, maxAge: 3 * 24 * 60 * 60, secure: true ,sameSite:"None" })
             res.json({ username: createdUser.username, role: createdUser.role, password: createdUser._id, root: savedFolder })
         } else {
 
-            res.cookie('jwt', token, { httpOnly: true, maxAge: 3 * 24 * 60 * 60, secure: true })
+            res.cookie('jwt', token, { httpOnly: true, maxAge: 3 * 24 * 60 * 60, secure: true,sameSite:"None" })
             res.json({ username: createdUser.username })
         }
 
@@ -73,6 +73,7 @@ router.post('/signup', async (req, res) => {
 })
 
 router.post('/login', async (req, res) => {
+  
     const { username, password } = req.body
     try {
 
@@ -81,7 +82,7 @@ router.post('/login', async (req, res) => {
         if (user.organizationName) {
 
             const rootFolder = await Folder.findOne({ path: `/${username}/` });
-            res.cookie('jwt', token, { maxAge: 3 * 24 * 60 * 60 * 1000*1000, secure: false })
+            res.cookie('jwt', token, { maxAge: 3 * 24 * 60 * 60 * 1000*1000, secure: true,sameSite:"None" })
             res.json({ 'role': user.role, "username": user.username, "firstName": user.firstName,"organizationName":user.organizationName, 'rootId': rootFolder._id })
 
         } else {
@@ -107,7 +108,7 @@ router.post('/login', async (req, res) => {
                 
             }
                
-            res.cookie('jwt', token, { maxAge: 3 * 24 * 60 * 60 * 1000, secure: false })
+            res.cookie('jwt', token, { maxAge: 3 * 24 * 60 * 60 * 1000, secure: true,sameSite:"None" })
             res.json({ "username": user.username, "firstName": user.firstName, "lastName":user.lastName,"organizationName":user.organizationName, usersFolder })
 
         }

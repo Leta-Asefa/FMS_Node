@@ -123,16 +123,16 @@ router.post('/add_subfolder',requireAuth, async (req, res) => {
 });
 
 
-router.delete('/delete_all',requireAuth, async (req, res) => {
-    try {
-        await Folder.deleteMany({});
-        await File.deleteMany({});
-        res.send("Deleted !")
-    } catch (error) {
-        console.error('Error fetching all folders:', error);
-        res.status(500).send('Internal Server Error');
-    }
-});
+// router.delete('/delete_all',requireAuth, async (req, res) => {
+//     try {
+//         await Folder.deleteMany({});
+//         await File.deleteMany({});
+//         res.send("Deleted !")
+//     } catch (error) {
+//         console.error('Error fetching all folders:', error);
+//         res.status(500).send('Internal Server Error');
+//     }
+// });
 
 router.delete('/delete', requireAuth, async (req, res) => {
     const { data } = req.body;
@@ -415,6 +415,7 @@ async function copySubfoldersAndFiles(folder, newFolder) {
             name: file.name,
             size: file.size,
             type: file.type,
+            hashedName:file.hashedName,
             folder: newFolder._id
         });
 
