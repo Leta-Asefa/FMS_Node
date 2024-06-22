@@ -82,7 +82,8 @@ router.post('/login', async (req, res) => {
         if (user.organizationName) {
 
             const rootFolder = await Folder.findOne({ path: `/${username}/` });
-            res.cookie('jwt', token, { maxAge: 3 * 24 * 60 * 60 * 1000*1000, secure: true,sameSite:"None" })
+            res.cookie('jwt', token, { maxAge: 3 * 24 * 60 * 60 * 1000 , secure: true, sameSite: "None" })
+            res.cookie('username', username, { maxAge: 3 * 24 * 60 * 60 * 1000, secure: true, sameSite: "None" })
             res.json({ 'role': user.role, "username": user.username, "firstName": user.firstName,"organizationName":user.organizationName, 'rootId': rootFolder._id })
 
         } else {
@@ -109,6 +110,7 @@ router.post('/login', async (req, res) => {
             }
                
             res.cookie('jwt', token, { maxAge: 3 * 24 * 60 * 60 * 1000, secure: true,sameSite:"None" })
+            res.cookie('username', username, { maxAge: 3 * 24 * 60 * 60 * 1000, secure: true, sameSite: "None" })
             res.json({ "username": user.username, "firstName": user.firstName, "lastName":user.lastName,"organizationName":user.organizationName, usersFolder })
 
         }

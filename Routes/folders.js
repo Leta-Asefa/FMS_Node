@@ -5,6 +5,7 @@ const path = require('path')
 const Folder = require('../Models/Folder')
 const User = require('../Models/User')
 const File = require('../Models/File')
+const Notification=require('../Models/Notification')
 const { requireAuth } = require('../Middleware/AuthMiddleware')
 const router = express.Router()
 
@@ -187,6 +188,13 @@ router.post('/upload/:folderId',requireAuth, upload.array('files', 50), async (r
 
         folder.files.push(...savedFiles.map(file => file._id));
         await folder.save();
+
+        const notification = new Notification({
+            owner: owner,
+            message: `${req.files.length} file(s) are uploaded by ${req.cookies.username} from ${owner} org. File names are ${req.files.map(file=>file.originalname)}`
+        })
+
+       await notification.save()  //notification saved
 
         res.status(201).json(savedFiles);
     } catch (error) {

@@ -32,4 +32,8 @@ const foldersRouter = require('./Routes/folders.js')
 app.use('/folders', foldersRouter)
 
 
+const notificationRouter = require('./Routes/notification.js')
+app.use('/notification', notificationRouter)
+
+
 
