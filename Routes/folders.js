@@ -137,19 +137,35 @@ router.post('/add_subfolder',requireAuth, async (req, res) => {
 
 router.delete('/delete', requireAuth, async (req, res) => {
     const { data } = req.body;
+    const foldersName = []
+    const filesName = []
+    let owner
     try {
         for (const element of data) {
             if (element.isFile) {
                 const file = await File.findByIdAndDelete(element.id);
+                filesName.push(file.name)
+                owner=file.owner
                 if (file) {
                     await Folder.findByIdAndUpdate(file.folder, { $pull: { files: file._id } });
                 }
             } else {
                 const folder = await Folder.findByIdAndDelete(element.id);
-
+                foldersName.push(folder.name)
+                owner=folder.path.split('/')[1]
             }
+
+            
         }
 
+        const notification = new Notification({
+            owner: owner,
+            message: `${req.cookies.username} from ${owner} org. deletes these files [  ${filesName} ] and folders[  ${foldersName}  ]`
+        })
+
+       await notification.save()  //notification saved
+
+        
         res.json({ "response": "Deleted Successfully !" });
     } catch (error) {
         console.error('Error deleting items:', error);
@@ -191,7 +207,7 @@ router.post('/upload/:folderId',requireAuth, upload.array('files', 50), async (r
 
         const notification = new Notification({
             owner: owner,
-            message: `${req.files.length} file(s) are uploaded by ${req.cookies.username} from ${owner} org. File names are ${req.files.map(file=>file.originalname)}`
+            message: `${req.files.length} file(s) are uploaded by ${req.cookies.username} from ${owner} org. File names are ${req.files.map(file=>` " ${file.originalname}" `)}`
         })
 
        await notification.save()  //notification saved
@@ -382,7 +398,7 @@ router.post('/rename/file/:fileId',requireAuth, async (req, res) => {
     const { newName } = req.body
     try {
         const file = await File.findById(fileId);
-
+        const oldName=file.name
         if (!file) {
             return res.status(404).send('File not found');
         }
@@ -390,6 +406,12 @@ router.post('/rename/file/:fileId',requireAuth, async (req, res) => {
         file.name = newName + '.' + fileExtension
 
         await file.save();
+        const notification = new Notification({
+            owner: file.owner,
+            message: `${req.cookies.username} from " ${file.owner} " org. renames the file from ${oldName} to ${newName}.`
+        })
+
+       await notification.save()  //notification saved
 
         res.status(201).json(file);
     } catch (error) {
@@ -466,6 +488,8 @@ router.post('/copy',requireAuth, async (req, res) => {
                 newParentFolder.files.push(savedFile._id);
                 await newParentFolder.save();
 
+
+
             } else if (type === 'folder') {
                 const folder = await Folder.findById(id).populate('subfolders files');
                 if (!folder) return res.status(404).send('Folder not found');
@@ -494,6 +518,7 @@ router.post('/copy',requireAuth, async (req, res) => {
 
 
     }
+
 
     res.status(201).send('Copied successfully');
 
@@ -587,7 +612,7 @@ router.post('/move',requireAuth, async (req, res) => {
 
     }
 
-    res.status(201).send('Copied successfully');
+    res.status(201).send('Moved successfully');
 
 });
 
