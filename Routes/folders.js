@@ -402,10 +402,11 @@ router.post('/rename/file/:fileId',requireAuth, async (req, res) => {
         if (!file) {
             return res.status(404).send('File not found');
         }
+        console.log("before ",file)
         const fileExtension = file.name.split('.').pop();
         file.name = newName + '.' + fileExtension
-
         await file.save();
+        console.log("after ",file)
         const notification = new Notification({
             owner: file.owner,
             message: `${req.cookies.username} from " ${file.owner} " org. renames the file from ${oldName} to ${newName}.`
