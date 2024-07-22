@@ -5,9 +5,8 @@ const path=require('path')
 require('dotenv').config();
 const cookieParser=require('cookie-parser')
 const app = express()
-const DBURL = 'mongodb://localhost:27017/DMS' // don't forget to add the hostname,port ... to .env 
+const DBURL=process.env.DBURL
 const PORT =process.env.PORT || 4000
-// const DBURL='mongodb+srv://root:0991@cluster0.dkanjkl.mongodb.net/TourAndTravelAgency' //for remote database access
 mongoose.connect(DBURL)
 const connection = mongoose.connection
 connection.on('open', () => console.log('Database Connection Established...'))
