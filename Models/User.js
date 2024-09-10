@@ -1,54 +1,62 @@
-const mongoose = require('mongoose')
-const { isEmail, isIn } = require('validator')
-const bcrypt=require('bcrypt')
+const bcrypt = require('bcrypt');
 
-const UserSchema = mongoose.Schema({
+module.exports = (sequelize, DataTypes) => {
+  const User = sequelize.define('User', {
     username: {
-        type: String,
-        required: [true, "Please enter the username"],
-        unique:true
+      type: DataTypes.STRING,
+      allowNull: false,
+      unique: true,
+      validate: {
+        notNull: { msg: "Please enter the username" }
+      }
     },
     password: {
-        type: String,
-        required: [true, "Please enter the password"],
-        minLength:[8,"minimum password length is 8 character"]
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: {
+        notNull: { msg: "Please enter the password" },
+        len: {
+          args: [8],
+          msg: "Minimum password length is 8 characters"
+        }
+      }
     },
     firstName: {
-        type: String
+      type: DataTypes.STRING,
+      allowNull: true
     },
     lastName: {
-        type: String
+      type: DataTypes.STRING,
+      allowNull: true
     },
     organizationName: {
-        type: String
+      type: DataTypes.STRING,
+      allowNull: true
     },
     role: {
-        type: String
-   
+      type: DataTypes.STRING,
+      allowNull: true
     }
-})
+  }, {
+    hooks: {
+      beforeCreate: async (user) => {
+        const salt = await bcrypt.genSalt();
+        user.password = await bcrypt.hash(user.password, salt);
+      }
+    }
+  });
 
-
-UserSchema.pre('save', async function (next) {
-    const salt=await bcrypt.genSalt()
-    this.password =await bcrypt.hash(this.password, salt)
-    console.log('pre save = ', this.password)
-    next()
-})
-
-
-UserSchema.statics.login = async function(username, password) {
-    const user = await this.findOne({ username })
+  User.login = async function(username, password) {
+    const user = await User.findOne({ where: { username } });
     if (user) {
-        if ( await bcrypt.compare(password, user.password)) {
-            return user
-        }
-        throw Error("password is not correct")
-    }throw Error("username is not registered")
-}
+      const auth = await bcrypt.compare(password, user.password);
+      if (auth) {
+        return user;
+      }
+      throw new Error("Password is not correct");
+    }
+    throw new Error("Username is not registered");
+  };
 
-
-
-module.exports=mongoose.model('User',UserSchema)
-
-
+  return User;
+};
