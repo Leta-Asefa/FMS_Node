@@ -1,6 +1,14 @@
+const { v4: uuidv4 } = require('uuid');
+
 module.exports = (sequelize, DataTypes) => {
   const File = sequelize.define('File',
     {
+      id: {
+        type: DataTypes.UUID,
+        defaultValue: uuidv4, // Generate a UUID by default
+        primaryKey: true,
+        allowNull: false
+      },
       name: {
         type: DataTypes.STRING,
         allowNull: false,

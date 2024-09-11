@@ -126,17 +126,26 @@ router.delete('/delete', requireAuth, async (req, res) => {
         for (const element of data) {
             if (element.isFile) {
                 const file = await req.db.File.findByPk(element.id);
+                const folder=await req.db.Folder.findByPk(file.dataValues.folderId);
                 if (file) {
-                    filesName.push(file.name);
-                    owner = file.owner;
+                     
+                    
+                    await req.db.Folder.update({ files: folder.dataValues.files.filter(fid=>element.id!==fid) }, { where: { id: folder.dataValues.id } })
+
                     await file.destroy();
+
                 }
             } else {
-                const folder = await req.db.Folder.findByPk(element.id);
-                if (folder) {
-                    foldersName.push(folder.name);
-                    owner = folder.path.split('/')[1];
-                    await folder.destroy();
+                const folderToBeDeleted = await req.db.Folder.findByPk(element.id);
+                const parentFolder = await req.db.Folder.findByPk(folderToBeDeleted.dataValues.ParentFolderId);
+                console.log(parentFolder);
+                if (folderToBeDeleted) {
+                     
+                    
+                    await req.db.Folder.update({ subfolders: parentFolder.subfolders.filter(fid=>folderToBeDeleted.dataValues.id!==fid) }, { where: { id: folderToBeDeleted.dataValues.ParentFolderId } })
+
+                    await folderToBeDeleted.destroy();
+
                 }
             }
         }
@@ -187,6 +196,28 @@ router.post('/upload/:folderId', requireAuth, upload.array('files', 50), async (
         res.status(500).send('Internal Server Error');
     }
 });
+
+router.get('/openfile/:fileId',requireAuth, async (req, res) => {
+    try {
+      const fileId = req.params.fileId;
+      const file = await req.db.File.findByPk(fileId);
+    
+      if (!file) {
+        return res.status(404).send('File not found');
+      }
+    
+      // Construct direct URL to the file
+      const fileUrl = `http://localhost:4000/uploads/${file.hashedName}`; // Adjust port number as needed
+    
+      res.json({
+        url: fileUrl,
+        type: file.type,
+        name: file.name
+      });
+    } catch (error) {
+      res.status(500).send('Server error');
+    }
+  });
 
 router.get('/users/:folderId', requireAuth, async (req, res) => {
     try {
