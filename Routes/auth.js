@@ -57,7 +57,10 @@ router.post('/signup', async (req, res) => {
                 path: `/${username}/`,
                 files: [],
                 subfolders: [],
-                owner: username
+                owner: username,
+                read: [],
+                write: [],
+                readWrite:[]
             });
 
             res.cookie('jwt', token, { httpOnly: true, maxAge: 3 * 24 * 60 * 60 * 1000, secure: true, sameSite: "None" });
@@ -127,8 +130,7 @@ router.post('/change_password', async (req, res) => {
 
     try {
         const user = await req.db.User.login(username, oldPassword);
-        user.password = newPassword;
-        await req.db.User.save();
+        await user.update({password:newPassword})
         const token = createToken(user.id);
         res.cookie('jwt', token, { maxAge: 3 * 24 * 60 * 60 * 1000, secure: true });
         res.json({ old: oldPassword, new: user.password, firstName: user.firstName });
