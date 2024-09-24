@@ -33,6 +33,7 @@ async function initializeDatabase() {
         db.User = require('./User')(sequelize, Sequelize.DataTypes);
         db.Folder = require('./Folder')(sequelize, Sequelize.DataTypes);
         db.File = require('./File')(sequelize, Sequelize.DataTypes);
+        db.Notification = require('./Notification')(sequelize, Sequelize.DataTypes);
        
         db.Folder.hasMany(db.File, { foreignKey: 'folderId', as: 'childfiles' });
           

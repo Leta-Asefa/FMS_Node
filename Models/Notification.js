@@ -1,22 +1,29 @@
-const mongoose = require('mongoose');
+const { v4: uuidv4 } = require('uuid');
 
-const NotificationSchema = new mongoose.Schema({
+module.exports = (sequelize, DataTypes) => {
+    const Notification = sequelize.define('Notification', {
+      
     owner: {
-        type:String,
-        required: true
+      type: DataTypes.STRING,
+      allowNull: false
     },
     message: {
-        type: String,
-        required: true
+      type: DataTypes.STRING,
+      allowNull: false
     },
     read: {
-        type: Boolean,
-        default: false
+      type: DataTypes.BOOLEAN,
+      defaultValue: false
     },
     createdAt: {
-        type: Date,
-        default: Date.now
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW
     }
-});
+  }, {
+    tableName: 'notifications',
+    timestamps: true,
+    updatedAt: false // Disable updatedAt column
+  });
 
-module.exports = mongoose.model('Notification', NotificationSchema);
+  return Notification;
+};

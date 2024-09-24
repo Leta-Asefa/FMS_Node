@@ -1,6 +1,7 @@
 const express = require('express');
 const { User, Folder } = require('../Models'); // Assuming you have User and Folder models defined in your Sequelize models
 const jwt = require('jsonwebtoken');
+const sequelize=require('sequelize')
 const router = express.Router();
 
 function handleErrors(err) {
@@ -89,32 +90,38 @@ router.post('/login', async (req, res) => {
         } else {
             const folders = await req.db.Folder.findAll({
                 where: {
-                    [Op.or]: [
-                        { read: { [Op.contains]: [username] } },
-                        { write: { [Op.contains]: [username] } },
-                        { readWrite: { [Op.contains]: [username] } }
-                    ]
+                  [sequelize.Op.or]: [
+                    sequelize.where(sequelize.fn('JSON_CONTAINS', sequelize.col('read'), `"${username}"`), 1),
+                    sequelize.where(sequelize.fn('JSON_CONTAINS', sequelize.col('write'), `"${username}"`), 1),
+                    sequelize.where(sequelize.fn('JSON_CONTAINS', sequelize.col('readWrite'), `"${username}"`), 1)
+                  ]
                 }
-            });
-
-            const usersFolder = await Promise.all(folders.map(async (folder) => {
+              });
+        
+            const usersFolder = [];
+        
+            for (const folder of folders) {
                 const name = folder.name;
                 const user = await req.db.User.findOne({ where: { username: name } });
                 const organizationName = user.organizationName;
                 let role;
-
-                if (folder.read.includes(username)) role = "read";
-                else if (folder.write.includes(username)) role = "write";
-                else if (folder.readWrite.includes(username)) role = "readWrite";
-                else role = 'unknown';
-
-                return { username: name, organizationName, role, rootId: folder.id };
-            }));
-
+                if (folder.read.includes(username))
+                    role = "read";
+                else if (folder.write.includes(username))
+                    role = "write";
+                else if (folder.readWrite.includes(username))
+                    role = "readWrite";
+                else
+                    role = 'unknown';
+        
+                usersFolder.push({ username: name, organizationName, role, rootId: folder.id });
+            }
+        
             res.cookie('jwt', token, { maxAge: 3 * 24 * 60 * 60 * 1000, secure: true, sameSite: "None" });
             res.cookie('username', username, { maxAge: 3 * 24 * 60 * 60 * 1000, secure: true, sameSite: "None" });
             res.json({ username: user.username, firstName: user.firstName, lastName: user.lastName, organizationName: user.organizationName, usersFolder });
         }
+        
     } catch (err) {
         res.json({ error: err.message });
     }

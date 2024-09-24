@@ -131,7 +131,8 @@ router.delete('/delete', requireAuth, async (req, res) => {
 
 
                     await req.db.Folder.update({ files: folder.dataValues.files.filter(fid => element.id !== fid) }, { where: { id: folder.dataValues.id } })
-
+                    owner = file.owner
+                    filesName.push(file.name)
                     await file.destroy();
 
                 }
@@ -143,17 +144,18 @@ router.delete('/delete', requireAuth, async (req, res) => {
 
 
                     await req.db.Folder.update({ subfolders: parentFolder.subfolders.filter(fid => folderToBeDeleted.dataValues.id !== fid) }, { where: { id: folderToBeDeleted.dataValues.ParentFolderId } })
-
+                    owner = folderToBeDeleted.path.split('/')[1]
+                    foldersName.push(folderToBeDeleted.name)
                     await folderToBeDeleted.destroy();
 
                 }
             }
         }
 
-        /* const notification = await req.db.Notification.create({
+         const notification = await req.db.Notification.create({
             owner: owner,
             message: `${req.cookies.username} from ${owner} org. deletes these files [  ${filesName} ] and folders[  ${foldersName}  ]`
-        }); */
+        }); 
 
         res.json({ response: 'Deleted Successfully!' });
     } catch (error) {
@@ -189,6 +191,11 @@ router.post('/upload/:folderId', requireAuth, upload.array('files', 50), async (
             folder.dataValues.files.push(file.dataValues.id)
         })
         await req.db.Folder.update({ files: folder.dataValues.files }, { where: { id: folder.dataValues.id } })
+
+        const notification = await  req.db.Notification.create({
+            owner: owner,
+            message: `${req.files.length} file(s) are uploaded by ${req.cookies.username} from ${owner} org. File names are ${req.files.map(file=>` " ${file.originalname}" `)}`
+        })
 
         res.status(201).json(savedFiles);
     } catch (error) {
@@ -472,11 +479,17 @@ router.post('/rename/:folderId',requireAuth, async (req, res) => {
         }
 
         const newPath = replaceLastOccurrence(folder.path, folder.name, newName);
-
-        folder.path = newPath
-        folder.name = newName
+        const oldName=folder.name
+        const owner = folder.path.split('/')[1]
 
         await folder.update({ path: newPath,name:newName });
+
+        
+        const notification = await req.db.Notification.create({
+            owner: owner,
+            message: `${req.cookies.username} from " ${owner} " org. renames the file from "${oldName}" to "${newName}".`
+        })
+
 
         res.status(201).json(folder);
 
@@ -523,13 +536,12 @@ router.post('/rename/file/:fileId',requireAuth, async (req, res) => {
         await file.update({ name: newNameWithExtension });
 
         
-    //     const notification = new Notification({
-    //         owner: file.owner,
-    //         message: `${req.cookies.username} from " ${file.owner} " org. renames the file from ${oldName} to ${newName}.`
-    //     })
+        const notification = await req.db.Notification.create({
+            owner: file.owner,
+            message: `${req.cookies.username} from " ${file.owner} " org. renames the file from "${oldName}" to "${newName}".`
+        })
 
-    //    await notification.save()  //notification saved
-
+     
         res.status(201).json(file);
     } catch (error) {
         console.error('Error renaming file:', error);
@@ -660,6 +672,30 @@ router.post('/permission/:folderId', requireAuth, async (req, res) => {
     } catch (error) {
         console.error('Error updating permissions:', error);
         res.status(500).send('Internal Server Error');
+    }
+});
+
+router.post('/removeUserAccess',requireAuth, async (req, res) => {
+    const { folderId, username } = req.body;
+    let newReadValue,newWriteValue,newReadWriteValue
+    try {
+        const folder = await req.db.Folder.findByPk(folderId);
+        
+        if (!folder) {
+            return res.status(404).send('Folder not found');
+        }
+
+        // Remove user from read, write, and readWrite arrays
+        newReadValue = folder.read.filter(user => user !== username);
+        newWriteValue = folder.write.filter(user => user !== username);
+        newReadWriteValue = folder.readWrite.filter(user => user !== username);
+
+        await folder.update( { read:newReadValue, write:newWriteValue, readWrite:newReadWriteValue } );
+
+
+        res.status(200).send('User access removed successfully');
+    } catch (error) {
+        res.status(500).send('Internal server error');
     }
 });
 
